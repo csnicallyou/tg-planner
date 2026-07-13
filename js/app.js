@@ -170,6 +170,15 @@ function h(tag, attrs = {}, ...children) {
 }
 const $view = () => document.getElementById('view');
 
+function icon(id) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'ic');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', '#' + id);
+  svg.append(use);
+  return svg;
+}
+
 // ===== rendering =====
 function render() {
   applyLang();
@@ -223,16 +232,16 @@ function renderToday(root) {
 
   const listEl = h('div', { class: 'task-list' });
   if (!list.length) {
-    listEl.append(h('div', { class: 'empty' }, h('span', { class: 'big' }, '🌤️'), t('no_tasks')));
+    listEl.append(h('div', { class: 'empty' }, t('no_tasks'), h('span', { class: 'hint' }, t('no_tasks_hint'))));
   } else {
     list.forEach(tk => listEl.append(taskCard(tk, curDate)));
-    if (done === list.length) listEl.append(h('div', { class: 'empty small' }, '🎉 ' + t('all_done')));
+    if (done === list.length) listEl.append(h('div', { class: 'empty small' }, t('all_done')));
   }
   root.append(listEl);
 
   const inbox = sortTasks(state.tasks.filter(tk => !tk.date && !tk.recur), curDate);
   if (inbox.length) {
-    root.append(h('div', { class: 'section-title' }, `📥 ${t('inbox')} · ${inbox.length}`));
+    root.append(h('div', { class: 'section-title' }, `${t('inbox')} · ${inbox.length}`));
     const inboxEl = h('div', { class: 'task-list' });
     inbox.forEach(tk => inboxEl.append(taskCard(tk, curDate)));
     root.append(inboxEl);
@@ -243,7 +252,7 @@ function taskCard(task, dateStr) {
   const done = isDone(task, dateStr);
   const meta = [];
   if (task.priority) meta.push(h('span', { class: 'meta-chip' }, h('span', { class: `prio-dot prio-${task.priority}` }), t(['p_none', 'p_low', 'p_med', 'p_high'][task.priority])));
-  if (task.recur) meta.push(h('span', { class: 'meta-chip' }, '🔁 ' + t('r_' + task.recur.freq)));
+  if (task.recur) meta.push(h('span', { class: 'meta-chip' }, icon('i-repeat'), t('r_' + task.recur.freq)));
   for (const tagId of task.tags || []) {
     const tag = state.tags.find(x => x.id === tagId);
     if (tag) meta.push(h('span', { class: 'meta-chip tag-chip', style: `background:${tag.color}` }, tag.name));
@@ -258,7 +267,7 @@ function taskCard(task, dateStr) {
     h('button', {
       class: 'task-check' + (done ? ' checked' : ''),
       onclick: e => { e.stopPropagation(); toggleDone(task, dateStr); render(); },
-    }, '✔'),
+    }, icon('i-check')),
     h('div', { class: 'task-body', onclick: () => taskEditor(task) },
       h('div', { class: 'task-title' }, task.title),
       meta.length ? h('div', { class: 'task-meta' }, meta) : null));
@@ -300,7 +309,7 @@ function renderNotes(root) {
   const input = h('input', { placeholder: t('notes_search'), value: noteQuery });
   input.addEventListener('input', () => { noteQuery = input.value; renderNotesList(listWrap); });
   root.append(h('div', { class: 'quickadd' },
-    h('div', { class: 'neo-inset searchbar', style: 'margin-bottom:0;flex:1' }, '🔍', input),
+    h('div', { class: 'neo-inset searchbar', style: 'margin-bottom:0;flex:1' }, icon('i-search'), input),
     h('button', { class: 'neo-btn qa-btn', onclick: () => noteEditor(null) }, '+')));
   const listWrap = h('div', { class: 'notes-grid' });
   renderNotesList(listWrap);
@@ -312,13 +321,13 @@ function renderNotesList(wrap) {
   let notes = state.notes.filter(n => !q || n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
   notes = notes.sort((a, b) => (b.pinned - a.pinned) || (b.updatedAt - a.updatedAt));
   if (!notes.length) {
-    wrap.append(h('div', { class: 'empty' }, h('span', { class: 'big' }, '📝'), t('no_notes')));
+    wrap.append(h('div', { class: 'empty' }, t('no_notes'), h('span', { class: 'hint' }, t('no_notes_hint'))));
     return;
   }
   for (const n of notes) {
     wrap.append(h('div', { class: 'neo note-card', onclick: () => noteEditor(n) },
       h('div', { class: 'note-head' },
-        n.pinned ? h('span', {}, '📌') : null,
+        n.pinned ? icon('i-pin') : null,
         h('div', { class: 'note-title' }, n.title || '…')),
       n.body ? h('div', { class: 'note-snippet' }, n.body) : null,
       h('div', { class: 'note-date' }, new Date(n.updatedAt).toLocaleDateString(getLang()))));
@@ -337,7 +346,7 @@ function renderGoals(root) {
     h('button', { class: 'neo-btn', onclick: () => { goalPeriod = shiftPeriod(goalPeriod, 1); render(); } }, '›')));
 
   const goals = state.goals.filter(g => g.scope === goalScope && g.period === goalPeriod);
-  if (!goals.length) root.append(h('div', { class: 'empty' }, h('span', { class: 'big' }, '🎯'), t('no_goals')));
+  if (!goals.length) root.append(h('div', { class: 'empty' }, t('no_goals'), h('span', { class: 'hint' }, t('no_goals_hint'))));
   for (const g of goals) {
     const doneSteps = g.steps.filter(s => s.done).length;
     const pct = g.steps.length ? Math.round(doneSteps / g.steps.length * 100) : (g.done ? 100 : 0);
@@ -347,7 +356,7 @@ function renderGoals(root) {
         h('button', {
           class: 'task-check' + (s.done ? ' checked' : ''),
           onclick: () => { s.done = !s.done; if (s.done) haptic('success'); save.goals(); render(); },
-        }, '✔'),
+        }, icon('i-check')),
         h('span', {}, s.title)));
     }
     root.append(h('div', { class: 'neo goal-card' },
@@ -476,7 +485,7 @@ function taskEditor(task) {
         h('button', {
           class: 'task-check' + (s.done ? ' checked' : ''),
           onclick: e => { s.done = !s.done; e.target.classList.toggle('checked', s.done); },
-        }, '✔'),
+        }, icon('i-check')),
         h('div', { class: 'neo-inset field-input' }, inp),
         h('button', { class: 'neo-btn sub-del', onclick: () => { draft.subtasks.splice(i, 1); renderSubs(); } }, '✕')));
     });
@@ -540,7 +549,7 @@ function noteEditor(note) {
   const pinBtn = h('button', {
     class: 'chip' + (pinned ? ' sel' : ''),
     onclick: e => { pinned = !pinned; e.target.classList.toggle('sel', pinned); },
-  }, '📌 ' + t('pin'));
+  }, t('pin'));
 
   const actions = h('div', { class: 'modal-actions' });
   if (!isNew) actions.append(h('button', {
@@ -677,8 +686,8 @@ function settingsModal() {
   // export / import
   const dataBox = h('div', {},
     h('div', { class: 'modal-actions', style: 'margin-top:6px' },
-      h('button', { class: 'neo-btn', onclick: showExport }, '⬆ ' + t('export_data')),
-      h('button', { class: 'neo-btn', onclick: showImport }, '⬇ ' + t('import_data'))));
+      h('button', { class: 'neo-btn', onclick: showExport }, t('export_data')),
+      h('button', { class: 'neo-btn', onclick: showImport }, t('import_data'))));
   function showExport() {
     const payload = JSON.stringify({ tasks: state.tasks, notes: state.notes, goals: state.goals, tags: state.tags, settings: state.settings });
     const ta = h('textarea', { class: 'export-area', readonly: true });
@@ -708,25 +717,25 @@ function settingsModal() {
       }, t('apply'))));
   }
 
-  const close = openModal('⚙ ' + t('settings'),
+  const close = openModal(t('settings'),
     h('div', { class: 'set-row' }, h('span', { class: 'set-lbl' }, t('language')), langSeg),
     h('div', { class: 'set-row' }, h('span', { class: 'set-lbl' }, t('theme')), themeSeg),
     h('div', { class: 'set-row' },
       h('span', { class: 'set-lbl' }, t('carry_over')),
       mkToggle(s.carryOver, v => { s.carryOver = v; save.settings(); })),
-    h('div', { class: 'section-title' }, '🍅 ' + t('pomodoro')),
+    h('div', { class: 'section-title' }, t('pomodoro')),
     h('div', { class: 'set-row' },
       h('span', { class: 'set-lbl' }, t('work_min')),
       h('div', { class: 'neo-inset num-input' }, workIn)),
     h('div', { class: 'set-row' },
       h('span', { class: 'set-lbl' }, t('break_min')),
       h('div', { class: 'neo-inset num-input' }, breakIn)),
-    h('div', { class: 'section-title' }, '🏷 ' + t('manage_tags')),
+    h('div', { class: 'section-title' }, t('manage_tags')),
     tagBox,
-    h('div', { class: 'section-title' }, '💾 ' + t('data')),
+    h('div', { class: 'section-title' }, t('data')),
     h('div', { class: 'set-row small muted' },
       h('span', {}, t('storage_lbl')),
-      h('span', {}, cloudAvailable ? '☁️ ' + t('storage_cloud') : '💻 ' + t('storage_local'))),
+      h('span', {}, cloudAvailable ? t('storage_cloud') : t('storage_local'))),
     dataBox);
 }
 
@@ -770,7 +779,7 @@ function renderPomoBar() {
   bar.classList.toggle('break', pomo.mode === 'break');
   bar.innerHTML = '';
   bar.append(
-    h('span', {}, pomo.mode === 'work' ? '🍅' : '☕'),
+    h('span', { class: 'pb-dot' }),
     h('span', { class: 'pb-time' }, `${mm}:${ss}`),
     h('span', { class: 'pb-task' }, pomo.title),
     h('button', {
@@ -784,9 +793,31 @@ function renderPomoBar() {
 }
 
 // ===== boot =====
-async function boot() {
+// UI comes up immediately; data hydrates asynchronously. A hung storage
+// backend must never leave the app dead (seen on Telegram iOS).
+function boot() {
+  window.addEventListener('error', e => console.error('uncaught:', e.message));
+  window.addEventListener('unhandledrejection', e => console.error('unhandled:', e.reason));
   try { tg?.ready(); tg?.expand(); } catch { /* browser dev mode */ }
 
+  applyTheme();
+  tg?.onEvent?.('themeChanged', applyTheme);
+
+  document.querySelectorAll('.nav-btn').forEach(b =>
+    b.addEventListener('click', () => { view = b.dataset.view; haptic(); render(); }));
+  document.getElementById('btn-settings').addEventListener('click', settingsModal);
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme;
+    state.settings.theme = cur === 'dark' ? 'light' : 'dark';
+    save.settings(); applyTheme();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves(); });
+
+  render();
+  hydrate().catch(e => console.error('hydrate failed', e));
+}
+
+async function hydrate() {
   const [tasks, notes, goals, tags, settings] = await Promise.all([
     loadCollection('tasks', []),
     loadCollection('notes', []),
@@ -805,19 +836,7 @@ async function boot() {
   if (!tags) save.tags();
 
   applyTheme();
-  tg?.onEvent?.('themeChanged', applyTheme);
   carryOver();
-
-  document.querySelectorAll('.nav-btn').forEach(b =>
-    b.addEventListener('click', () => { view = b.dataset.view; haptic(); render(); }));
-  document.getElementById('btn-settings').addEventListener('click', settingsModal);
-  document.getElementById('btn-theme').addEventListener('click', () => {
-    const cur = document.documentElement.dataset.theme;
-    state.settings.theme = cur === 'dark' ? 'light' : 'dark';
-    save.settings(); applyTheme();
-  });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves(); });
-
   render();
 }
 

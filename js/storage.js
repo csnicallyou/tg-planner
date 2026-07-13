@@ -32,8 +32,23 @@ class LocalAdapter {
   async removeItems(keys) { keys.forEach(k => localStorage.removeItem(k)); return true; }
 }
 
-export const cloudAvailable = !!(tg && tg.initData && tg.CloudStorage && tg.isVersionAtLeast?.('6.9'));
-const adapter = cloudAvailable ? new CloudAdapter() : new LocalAdapter();
+export let cloudAvailable = !!(tg && tg.initData && tg.CloudStorage && tg.isVersionAtLeast?.('6.9'));
+let adapter = cloudAvailable ? new CloudAdapter() : new LocalAdapter();
+
+// CloudStorage callbacks can hang on some clients; never let that freeze the app.
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('storage timeout')), ms)),
+  ]);
+}
+function demoteToLocal(reason) {
+  if (!(adapter instanceof LocalAdapter)) {
+    console.warn('cloud storage unavailable, falling back to localStorage:', reason);
+    adapter = new LocalAdapter();
+    cloudAvailable = false;
+  }
+}
 
 // CloudStorage limits: 4096 chars per value, 1024 keys.
 // Collections are stored as JSON split into chunks: m:<name> = count, c:<name>:<i> = chunk.
@@ -42,16 +57,20 @@ const chunkCounts = {};
 
 export async function loadCollection(name, fallback) {
   try {
-    const meta = await adapter.getItem(`m:${name}`);
+    const meta = await withTimeout(adapter.getItem(`m:${name}`), 4000);
     if (!meta) return fallback;
     const n = parseInt(meta, 10);
     chunkCounts[name] = n;
     const keys = Array.from({ length: n }, (_, i) => `c:${name}:${i}`);
-    const parts = await adapter.getItems(keys);
+    const parts = await withTimeout(adapter.getItems(keys), 4000);
     const json = keys.map(k => parts[k] || '').join('');
     return json ? JSON.parse(json) : fallback;
   } catch (e) {
     console.error(`load ${name} failed`, e);
+    if (String(e?.message).includes('timeout')) {
+      demoteToLocal(e.message);
+      return loadCollection(name, fallback); // retry once against localStorage
+    }
     return fallback;
   }
 }
